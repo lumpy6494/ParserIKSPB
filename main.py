@@ -91,7 +91,8 @@ def find_class(code, headers ):
             threlist = []
             for i in td:
                 if not i.get_text().startswith('\n'):
-                    threlist.append(i.get_text())
+                    if i.get_text() != '':
+                        threlist.append(i.get_text())
             if threlist != []:
                 listpeople.append(threlist)
 
