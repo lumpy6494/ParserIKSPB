@@ -27,7 +27,7 @@ def new_cookies():
     tik_num_list = []
     res_tik_dict_uch = {}
     try:
-        print("Сейчас идет по сбору данных о ТИКах и УИКах. Увлекательное путешествие займет около 30 миниут. ")
+        print("Сейчас идет по сбор данных о ТИКах и УИКах. Увлекательное путешествие займет около 30 миниут. ")
         driver.get("http://www.st-petersburg.vybory.izbirkom.ru/region/st-petersburg?action=ik")
         tik_number = driver.find_elements(By.TAG_NAME, "li")
         for num in tik_number:
