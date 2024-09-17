@@ -1,12 +1,12 @@
 import requests
 import time
 from seleniumwire  import webdriver
+from selenium.webdriver.common.by import By
 from bs4 import BeautifulSoup
 from config import TIK, PATHCHROME, SAVEFILE
 import csv
 from csv import writer
 import datetime
-
 
 options = webdriver.ChromeOptions()
 options.add_argument('--headless')
@@ -19,17 +19,34 @@ driver = webdriver.Chrome(executable_path=PATHCHROME, options=options)
 new_headers = {
     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36',
     "accept":"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Referer":"http://www.st-petersburg.vybory.izbirkom.ru/region/st-petersburg?action=ik&vrn=4784001382675"
 }
 
 def new_cookies():
     new_cookies_sel = {}
+    tik_num_list = []
+    res_tik_dict_uch = {}
     try:
-        driver.get("https://tik9.spbik.spb.ru/index.php?p=2")
-        time.sleep(2)
+        print("Сейчас идет сбор данных о ТИКах и УИКах. Увлекательное путешествие займет около 30 миниут. ")
+        driver.get("http://www.st-petersburg.vybory.izbirkom.ru/region/st-petersburg?action=ik")
+        tik_number = driver.find_elements(By.TAG_NAME, "li")
+        for num in tik_number:
+            tik_num_list.append(num.get_attribute("id"))
+
+        for name_tik in tik_num_list[1:]:
+            driver.get(f"http://www.st-petersburg.vybory.izbirkom.ru/region/st-petersburg?action=ik&vrn={name_tik}")
+            uchnumber = driver.find_elements(By.TAG_NAME, "li")
+            res_tik_dict_uch[name_tik] = []
+            for get_uch in uchnumber:
+                if get_uch.get_attribute("id") not in tik_num_list:
+                    res_tik_dict_uch.get(name_tik).append(get_uch.get_attribute("id"))
+
         for i in driver.get_cookies():
             key = i.get("name")
             name = i.get("value")
             new_cookies_sel[key] = name
+        print(new_cookies_sel)
+
     except Exception as  ex:
         print(ex)
     finally:
@@ -38,72 +55,14 @@ def new_cookies():
     cookies_db1 = {
         "accept": new_headers['accept'],
         'user-agent': new_headers['user-agent'],
-        "cookie": f'_ym_isad={new_cookies_sel.get("_ym_isad")}; '
-                  f'_ym_d={new_cookies_sel.get("_ym_d")}; '
-                  f'_ym_uid={new_cookies_sel.get("_ym_uid")}; '
+        "cookie": f'izbFP={new_cookies_sel.get("izbFP")}; '
+                  f'session-cookie={new_cookies_sel.get("session-cookie")}; '
                   f'sputnik_session={new_cookies_sel.get("sputnik_session")}; '
-                  f'sp_test={new_cookies_sel.get("sp_test")}; '
+                  f'izbSession={new_cookies_sel.get("izbSession")}; '
+                  f'JSESSIONID={new_cookies_sel.get("JSESSIONID")}; '
     }
 
-    return {"cookies":cookies_db1, 'headers':new_headers}
-
-def find_class(code, cookies, headers):
-    result = {}
-    listpeople =[]
-    try:
-        link = f"https://tik{code}.spbik.spb.ru/index.php?p=2"
-        response = requests.get(link, headers=headers, cookies=cookies)
-        soup = BeautifulSoup(response.content, 'html.parser')
-        tr = soup.find_all("tr")
-        tagb = soup.find_all("b")
-        div_name_com = soup.find_all("div")
-        for val in tagb:
-            if val.get_text().startswith("Состав"):
-                nametik=val.get_text()
-                listpeople.append(nametik)
-                break
-            else:
-                for ii in div_name_com:
-                    if ii.get_text().startswith("Состав"):
-                        nametik = ii.get_text()
-                        listpeople.append(nametik)
-                        break
-            break
-
-        for td in tr:
-            if len(td) == 3:
-                threlist = []
-                for i in td:
-                    try:
-                        if i.attrs.get('class') == None:
-                            value = i.get_text()
-                            threlist.append(value)
-                    except:
-                        value = i.get_text()
-                        threlist.append(value)
-                if threlist != []:
-                    listpeople.append(threlist)
-            else:
-                twolist = []
-                for i in td:
-                    try:
-                        if i.attrs.get('class') == None:
-                            value = i.get_text()
-                            twolist.append(value)
-                    except:
-                        value = i.get_text()
-                        twolist.append(value)
-                if twolist != []:
-                    listpeople.append(twolist)
-
-    except Exception as e:
-        print(e)
-        print(f"Упаили с исключением на участке {code}")
-
-    result[code] = listpeople
-    print(result)
-    return result
-
+    return {  'headers':cookies_db1,  "result":res_tik_dict_uch }
 
 def append_file( namefile: str, nametik:str, listpeople :list ):
     with open(namefile, 'a', newline='',encoding="utf-8" ) as f_object:
@@ -113,15 +72,60 @@ def append_file( namefile: str, nametik:str, listpeople :list ):
         f_object.close()
 
 
+def find_class(code, headers ):
+    result = {}
+    listpeople = []
+    try:
+        link = f"http://www.st-petersburg.vybory.izbirkom.ru/region/st-petersburg?action=ik&vrn={code}"
+        response = requests.get(link, headers=headers)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        h2 = soup.find_all("h2")
+        tr = soup.find_all("tr")
+        for hh in h2:
+            if hh.get_text().startswith("Санкт-Петербургская") or hh.get_text().startswith("ТИК ") \
+                    or hh.get_text().startswith("Участковая"):
+                nametik = hh.get_text()
+                listpeople.append(nametik)
+                break
+        for td in tr:
+            threlist = []
+            for i in td:
+                if not i.get_text().startswith('\n'):
+                    if i.get_text() != '':
+                        threlist.append(i.get_text())
+            if threlist != []:
+                listpeople.append(threlist)
+
+    except Exception as e:
+        print(e)
+        print(f"Упаили с исключением")
+
+    result[code] = listpeople
+    print(result)
+    return result
+
+
+
+
 if __name__== "__main__":
+    # web = new_cookies()
+    # find_class( web.get("headers"), web.get("result"))
     data = datetime.datetime.now().strftime("%Y_%m_%d_%M_%S")
     filename = f"{data}_{SAVEFILE}"
     web = new_cookies()
     file = open(filename, 'w', encoding='UTF8')
     file.close()
-    for i in range(1,TIK):
+
+    for parse in web.get("result").keys():
         time.sleep(1)
-        res = find_class(i, web.get("cookies"), web.get("headers"))
-        append_file( filename, res.get(i)[0], res.get(i)[1:] )
+        res = find_class(parse, web.get("headers"))
+        append_file(filename, res.get(parse)[0], res.get(parse)[1:])
+        for par in web.get("result").get(parse):
+            time.sleep(1)
+            res = find_class(par, web.get("headers"))
+            append_file(filename, res.get(par)[0], res.get(par)[1:])
+
+
+
 
 
